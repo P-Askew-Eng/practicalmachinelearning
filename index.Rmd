@@ -5,18 +5,34 @@ date: "8 March 2016"
 output: html_document
 ---
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+Practical Machine Learning Project
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r}
-summary(cars)
+```{r, echo=FALSE, warnings=FALSE}
+#environment set up
+setwd("C:/Users/Paul Askew/Coursera/practicalmachinelearning")
+library(caret)
+library(randomForest)
+modelset<-read.csv("pml_train.csv")
+inTrain<-createDataPartition(y=modelset$classe,p=0.75, list=FALSE)
+trainset<-modelset[inTrain,]
+testset<-modelset[-inTrain,]
 ```
 
-You can also embed plots, for example:
+We have split the training data into a training set and a test set.  We will make the first model using the caret package to train with the rpart package.  The model is based on the x,y and z accelerations of each of the sensors (arm, belt, forearm and dumbell)
 
 ```{r, echo=FALSE}
-plot(cars)
+fitmodel<-train(classe~accel_forearm_x+accel_forearm_y+accel_forearm_z+accel_dumbbell_x+accel_dumbbell_y+accel_dumbbell_z+accel_arm_x+accel_arm_y+accel_arm_z+accel_belt_x+accel_belt_y+accel_belt_z,data=trainset,method="rpart")
+fitmodel
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+test the model, using the model withthe predict function and each of the test sets and training sets.  We see that it produces misclassfications.
+```{r}
+predicttrain<-predict(fitmodel,trainset)
+predicttest<-predict(fitmodel,testset)
+missClass = function(values,prediction){round(sum(prediction!=values)/length(values)*100,2)}
+missClass(trainset$classe,predicttrain)
+missClass(testset$classe,predicttest)
+plot(fitmodel$finalModel, uniform = T)
+text(fitmodel$finalModel, cex=0.8)
+```
+the training set is misclassified `r missClass(trainset$classe,predicttrain)`% of the time and the test set is misclassifed `r missClass(testset$classe,predicttest)`% of the time.  This is not good! Looking at the plot of the model we can see it is very poor and will never classify a C.  We need to try something else.
