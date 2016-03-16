@@ -10,6 +10,7 @@ Practical Machine Learning Project
 ```{r, echo=FALSE, warnings=FALSE}
 #environment set up
 setwd("C:/Users/Paul Askew/Coursera/practicalmachinelearning")
+set.seed(4059)
 library(caret)
 library(randomForest)
 modelset<-read.csv("pml_train.csv",na.strings = c("NA", ""))
@@ -20,10 +21,11 @@ trainset<-modelset[inTrain,]
 testset<-modelset[-inTrain,]
 ```
 
-We have split the training data into a training set and a test set.  We will make the first model using the caret package to train with the rpart package.  The model is based on the x,y and z accelerations of each of the sensors (arm, belt, forearm and dumbell)
+We have split the training data into a training set and a test set.  Columns with NA have been removed reducing the number of variables form 160 to 60 which is much easier to handle.  When testing this some of the models took a long time to train so the training and test set were comprised of 75% of the overall set.
+We will make the first model using the caret package to train with the rpart package.  As we have reduced the number of variables this is done against the remaining variables
 
 ```{r, echo=FALSE}
-fitmodel<-train(classe~accel_forearm_x+accel_forearm_y+accel_forearm_z+accel_dumbbell_x+accel_dumbbell_y+accel_dumbbell_z+accel_arm_x+accel_arm_y+accel_arm_z+accel_belt_x+accel_belt_y+accel_belt_z,data=trainset,method="rpart")
+fitmodel<-train(classe~.,data=trainset,method="rpart")
 fitmodel
 ```
 
@@ -33,14 +35,22 @@ predicttrain<-predict(fitmodel,trainset)
 predicttest<-predict(fitmodel,testset)
 missClass = function(values,prediction){round(sum(prediction!=values)/length(values)*100,2)}
 plot(fitmodel$finalModel, uniform = T)
-text(fitmodel$finalModel, cex=0.8)
+text(fitmodel$finalModel, cex=0.6)
 ```
 
 
-The training set is misclassified `r missClass(trainset$classe,predicttrain)`% of the time and the test set is misclassifed `r missClass(testset$classe,predicttest)`% of the time.  This is not good! Looking at the plot of the model we can see it is very poor and will never classify a C.  We need to try something else.
+The training set is misclassified `r missClass(trainset$classe,predicttrain)`% of the time and the test set is misclassifed `r missClass(testset$classe,predicttest)`% of the time.  This is not good! Looking at the plot of the model we can see it is very poor and will never classify a C or a D.  Quite frankly this will take quite a bit of improving so we need to try something else, in this case a random forest.  This was tried and took a long time to run so some preprocessing has been done to help reduce the run time.
 ```{r}
-newfit<-train(classe~accel_forearm_x+accel_forearm_y+accel_forearm_z+accel_dumbbell_x+accel_dumbbell_y+accel_dumbbell_z+accel_arm_x+accel_arm_y+accel_arm_z+accel_belt_x+accel_belt_y+accel_belt_z,data=trainset,method="rf",prox=TRUE)
-newfit
-plot(newfit$finalModel, uniform = T)
-text(newfit$finalModel, cex=0.8)
+newfit<-train(classe~.,data=trainset,preProcess=c("center", "scale"),method="rf",prox=TRUE)
+trainvalidate<-predict(newfit,trainset)
+testvalidate<-predict(newfit,testset)
+missClass(trainset$classe,trainvalidate)
+missClass(testset$classe,testvalidate)
 ```
+Finally just test the model against the test set provided for the project.
+```{r}
+quizset<-read.csv("pml_test.csv",na.strings = c("NA", ""))
+quizans<-predict(newfit,quizset)
+quizans
+```
+
