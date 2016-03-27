@@ -1,27 +1,30 @@
 ---
 title: "Practical machine Learning"
 author: "Paul Askew"
-date: "8 March 2016"
+date: "28 March 2016"
 output: html_document
 ---
 
 Practical Machine Learning Project
 
-```{r set up environement and read in data, echo=FALSE, warnings=FALSE}
+```{r set up environement and read in data, echo=TRUE, warnings=FALSE}
 #environment set up
 setwd("C:/Users/Paul/OneDrive/Coursera/practicalmachinelearning")
 set.seed(4059)
 library(caret)
 library(randomForest)
-modelset<-read.csv("pml_train.csv",na.strings = c("NA", ""))
+modelset<-read.csv("pml_train.csv",na.strings = c("NA", "","#DIV/0!"))
+unneccols <- c("X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2", "cvtd_timestamp", "new_window", "num_window")
 NAs <- apply(modelset, 2, function(x){sum(is.na(x))})
 modelset<-modelset[,which(NAs==0)]
+modelset <- modelset[, -which(names(modelset) %in% unneccols)]
 inTrain<-createDataPartition(y=modelset$classe,p=0.75, list=FALSE)
 trainset<-modelset[inTrain,]
 testset<-modelset[-inTrain,]
 ```
+More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
 
-We have split the training data into a training set and a test set.  Columns with NA have been removed reducing the number of variables form 160 to 60 which is much easier to handle.  When testing this some of the models took a long time to train so the training and test set were comprised of 75% of the overall set.
+We have split the training data into a training set and a test set.  Columns with NA have been removed reducing the number of variables form 160 to 60 which is much easier to handle.  We have reduced the number fo variables even further by removing some obvious parameters such as user_name When testing this some of the models took a long time to train so the training and test set were comprised of 75% of the overall set.
 We will make the first model using the caret package to train with the rpart package.  As we have reduced the number of variables this is done against the remaining variables
 
 ```{r create random tree, echo=FALSE}
@@ -29,27 +32,41 @@ fitmodel<-train(classe~.,data=trainset,method="rpart")
 fitmodel
 ```
 
-test the model, using the model withthe predict function and each of the test sets and training sets.  We see that it produces misclassfications.
+We test the model, using the model with the predict function and each of the test sets and training sets.  We see that it produces misclassfications.
+
 ```{r test random tree}
 predicttrain<-predict(fitmodel,trainset)
 predicttest<-predict(fitmodel,testset)
 missClass = function(values,prediction){round(sum(prediction!=values)/length(values)*100,2)}
 plot(fitmodel$finalModel, uniform = T)
-text(fitmodel$finalModel, cex=0.6)
+text(fitmodel$finalModel, cex=0.3)
 ```
 
 
-The training set is misclassified `r missClass(trainset$classe,predicttrain)`% of the time and the test set is misclassifed `r missClass(testset$classe,predicttest)`% of the time.  This is not good! Looking at the plot of the model we can see it is very poor and will never classify a C or a D.  Quite frankly this will take quite a bit of improving so we need to try something else, in this case a random forest.  This was tried and took a long time to run so some preprocessing has been done to help reduce the run time.
-```{r create random forest, echo=FALSE, message=FALSE, warning=FALSE}
-newfit<-train(classe~.,data=trainset,preProcess=c("center", "scale"),method="rf",prox=TRUE)
+The training set is misclassified `r missClass(trainset$classe,predicttrain)`% of the time and the test set is misclassifed `r missClass(testset$classe,predicttest)`% of the time.  This is not good! Looking at the plot of the model we can see it is very poor and will never classify a  D.  Quite frankly this will take quite a bit of improving so we need to try something else, in this case a random forest.  This was tried and took a long time to run so some preprocessing has been done to help reduce the run time. http://topepo.github.io/caret/training.html contains some useful background to the train function in caret.
+```{r create random forest, echo=TRUE, message=FALSE, warning=FALSE}
+fitControl <- trainControl(method = "cv",number = 5)
+newfit<-train(classe~.,data=trainset,preProcess=c("center", "scale"),method="rf",trcontrol=fitControl,prox=TRUE)
 trainvalidate<-predict(newfit,trainset)
 testvalidate<-predict(newfit,testset)
-missClass(trainset$classe,trainvalidate)
-missClass(testset$classe,testvalidate)
+
+
 ```
+
+Looking at the misclassification this time the training set is misclassified `r missClass(trainset$classe,trainvalidate)`% of the time and the test set is misclassified `r missClass(testset$classe,testvalidate)`% of the time. Some plots of the random forest are givenbelow.
+
+```{r}
+plot(varImp(newfit), main = "Top 10 predictors", top = 10)
+plot(newfit, main="Model accuracy by predictors")
+```
+
+
 Finally just test the model against the test set provided for the project.
 ```{r test model}
-quizset<-read.csv("pml_test.csv",na.strings = c("NA", ""))
+quizset<-read.csv("pml_test.csv",na.strings = c("NA", "","#DIV/0!"))
+NAs <- apply(quizset, 2, function(x){sum(is.na(x))})
+quizset<-quizset[,which(NAs==0)]
+quizset <- quizset[, -which(names(quizset) %in% unneccols)]
 quizans<-predict(newfit,quizset)
 quizans
 ```
